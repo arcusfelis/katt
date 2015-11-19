@@ -151,7 +151,13 @@ transaction_result_to_mochijson3({ Description
                                  , Result
                                  }) ->
   {katt_request, Method, Url, ReqHeaders, ReqBody} = Request,
-  {katt_response, Status, ResHeaders, ResBody, _ResParsedBody} = Response,
+  {Status, ResHeaders, ResBody} =
+    case Response of
+      {error, ResBody0} ->
+        {500, [], atom_to_list(ResBody0)};
+      {katt_response, Status0, ResHeaders0, ResBody0, _ResParsedBody} ->
+        {Status0, ResHeaders0, ResBody0}
+  end,
   Errors = case Result of
              pass ->
                [];
