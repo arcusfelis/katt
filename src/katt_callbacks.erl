@@ -34,6 +34,10 @@
         , progress/2
         ]).
 
+%% Internal exports
+-export([ http_request_now/6
+        ]).
+
 %%%_* Includes =================================================================
 -include("katt.hrl").
 
@@ -241,7 +245,30 @@ http_request( #katt_request{ method = Method
   Hdrs1 = proplists:delete("x-katt-sleep", Hdrs0),
   Hdrs = proplists:delete("x-katt-timeout", Hdrs1),
   timer:sleep(Sleep),
-  lhttpc:request(Url, Method, Hdrs, Body, Timeout, []).
+  %% need to module-prefixed call for meck's case
+  %% http_request_now(Url, Method, Hdrs, Body, Timeout, []).
+  katt_callbacks:http_request_now(Url, Method, Hdrs, Body, Timeout, []).
+
+http_request_now(Url, Method, Hdrs, Body, Timeout, []) ->
+  BUrl = list_to_binary(Url),
+  BHdrs = lists:map( fun({Name, Value})->
+                         {list_to_binary(Name), list_to_binary(Value)}
+                     end
+                   , Hdrs
+                   ),
+  Options = [{recv_timeout, Timeout}],
+  case hackney:request(Method, BUrl, BHdrs, Body, Options) of
+    {ok, Status, BResHdrs, Client} ->
+      {ok, ResBody} = hackney:body(Client),
+      ResHdrs = lists:map( fun({Name, Value})->
+                               {binary_to_list(Name), binary_to_list(Value)}
+                           end
+                         , BResHdrs
+                         ),
+      {ok, {{Status, ""}, ResHdrs, ResBody}};
+    Error ->
+      Error
+  end.
 
 validate_status( #katt_response{status=E}
                , #katt_response{status=A}
